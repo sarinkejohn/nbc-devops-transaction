@@ -20,6 +20,12 @@ pipeline {
         }
 
         stage('Build (Maven)') {
+            agent {
+                docker {
+                    image 'maven:3.8.8-openjdk-17'
+                    args '-v /root/.m2:/root/.m2'
+                }
+            }
             steps {
                 sh 'mvn -B clean package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
@@ -33,8 +39,7 @@ pipeline {
                     docker.withRegistry('https://registry.hub.docker.com', env.DOCKERHUB_CREDENTIALS) {
                         def built = docker.build(imageName)
                         built.push()
-                        docker.tag(imageName, "${env.DOCKER_REPO}:latest")
-                        docker.image("${env.DOCKER_REPO}:latest").push()
+                        docker.image(imageName).push("latest")
                     }
                 }
             }
