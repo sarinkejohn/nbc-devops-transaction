@@ -6,21 +6,15 @@ metadata:
     jenkins/agent: "true"
 spec:
   containers:
-    - name: maven
-      image: maven:3.9.9-eclipse-temurin-23
-      command:
-        - cat
-      tty: true
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:latest
-      args: ["--dockerfile=/workspace/Dockerfile",
-             "--context=/workspace",
-             "--destination=sarinkejohn/nbc-devops-transaction:latest"]
-      volumeMounts:
-        - name: kaniko-secret
-          mountPath: /kaniko/.docker
-  restartPolicy: Never
-  volumes:
-    - name: kaniko-secret
-      secret:
-        secretName: dockerhub-secret
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+      - /busybox/sh
+      - -c
+      - "sleep infinity"
+    volumeMounts:
+      - name: workspace-volume
+        mountPath: /workspace
+      - name: kaniko-secret
+        mountPath: /kaniko/.docker
+

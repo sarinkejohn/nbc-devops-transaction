@@ -1,30 +1,65 @@
 pipeline {
     agent {
         kubernetes {
-            label 'maven-kaniko-agent'
-            defaultContainer 'maven'
-            yamlFile 'pod-template.yaml'  // path to your pod template if stored in repo
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: maven-kaniko-agent
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    args: ['\$(JENKINS_SECRET)', '\$(JENKINS_NAME)']
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+  - name: maven
+    image: maven:3.9.9-eclipse-temurin-23
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+      - name: workspace-volume
+        mountPath: /workspace
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+      - name: workspace-volume
+        mountPath: /workspace
+      - name: kaniko-secret
+        mountPath: /kaniko/.docker
+  volumes:
+    - name: workspace-volume
+      emptyDir: {}
+    - name: kaniko-secret
+      secret:
+        secretName: dockerhub-secret
+"""
         }
-    }
-
-    environment {
-        DOCKER_REPO = 'sarinkejohn/nbc-devops-transaction'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        K8S_DEPLOYMENT = 'k8s-deployment.yaml'  // your deployment YAML
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                container('maven') {
+                    git url: 'https://github.com/sarinkejohn/nbc-devops-transaction.git', branch: 'main'
+                }
             }
         }
 
-        stage('Build JAR') {
+        stage('Build (Maven)') {
             steps {
                 container('maven') {
-                    sh 'mvn clean package -DskipTests'
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                    sh 'mvn -B clean package -DskipTests'
                 }
             }
         }
@@ -32,32 +67,21 @@ pipeline {
         stage('Build & Push Docker Image') {
             steps {
                 container('kaniko') {
-                    sh """
+                    sh '''
                     /kaniko/executor \
-                        --dockerfile=Dockerfile \
-                        --context=dir://\$WORKSPACE \
-                        --destination=${DOCKER_REPO}:${IMAGE_TAG} \
-                        --destination=${DOCKER_REPO}:latest
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to Minikube') {
-            steps {
-                container('maven') { // kubectl can run from any container with kubectl
-                    sh 'kubectl apply -f ' + env.K8S_DEPLOYMENT
+                      --context=/workspace \
+                      --dockerfile=/workspace/Dockerfile \
+                      --destination=sarinkejohn/nbc-devops-transaction:latest \
+                      --verbosity=info
+                    '''
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "Build & deployment successful: ${DOCKER_REPO}:${IMAGE_TAG}"
-        }
-        failure {
-            echo "Build or deploy failed"
+        always {
+            echo 'Pipeline finished'
         }
     }
 }
