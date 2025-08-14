@@ -1,70 +1,63 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'maven-kaniko-agent'
+            defaultContainer 'maven'
+            yamlFile 'pod-template.yaml'  // path to your pod template if stored in repo
+        }
+    }
 
     environment {
-        DOCKERHUB_CREDENTIALS = 'docker-hub-sarinke'
         DOCKER_REPO = 'sarinkejohn/nbc-devops-transaction'
-        GIT_COMMIT_SHORT = "${env.GIT_COMMIT ?: sh(script:'git rev-parse --short HEAD', returnStdout: true).trim()}"
-        IMAGE_TAG = "${GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        K8S_DEPLOYMENT = 'k8s-deployment.yaml'  // your deployment YAML
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-                script {
-                    env.GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.IMAGE_TAG = "${env.GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
+            }
+        }
+
+        stage('Build JAR') {
+            steps {
+                container('maven') {
+                    sh 'mvn clean package -DskipTests'
+                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
                 }
             }
         }
 
-        stage('Build (Maven)') {
-            agent {
-                docker {
-                     image 'maven:3.9.9-eclipse-temurin-23'
-                    args '-v /root/.m2:/root/.m2'
+        stage('Build & Push Docker Image') {
+            steps {
+                container('kaniko') {
+                    sh """
+                    /kaniko/executor \
+                        --dockerfile=Dockerfile \
+                        --context=dir://\$WORKSPACE \
+                        --destination=${DOCKER_REPO}:${IMAGE_TAG} \
+                        --destination=${DOCKER_REPO}:latest
+                    """
                 }
-            }
-            steps {
-                sh 'mvn -B clean package -DskipTests'
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-            }
-        }
-
-        stage('Build Docker image') {
-            steps {
-                script {
-                    def imageName = "${env.DOCKER_REPO}:${env.IMAGE_TAG}"
-                    docker.withRegistry('https://registry.hub.docker.com', env.DOCKERHUB_CREDENTIALS) {
-                        def built = docker.build(imageName)
-                        built.push()
-                        docker.image(imageName).push("latest")
-                    }
-                }
-            }
-        }
-
-        stage('Cleanup local images') {
-            steps {
-                sh "docker rmi ${env.DOCKER_REPO}:${env.IMAGE_TAG} || true"
-                sh "docker rmi ${env.DOCKER_REPO}:latest || true"
             }
         }
 
         stage('Deploy to Minikube') {
             steps {
-                sh "kubectl apply -f k8s-deployment.yaml"
+                container('maven') { // kubectl can run from any container with kubectl
+                    sh 'kubectl apply -f ' + env.K8S_DEPLOYMENT
+                }
             }
         }
     }
 
     post {
         success {
-            echo "Image pushed: ${env.DOCKER_REPO}:${env.IMAGE_TAG}"
+            echo "Build & deployment successful: ${DOCKER_REPO}:${IMAGE_TAG}"
         }
         failure {
-            echo "Build or push failed"
+            echo "Build or deploy failed"
         }
     }
 }
