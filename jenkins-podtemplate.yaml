@@ -5,28 +5,32 @@ metadata:
     jenkins/agent: maven-docker
 spec:
   containers:
-    - name: maven-docker
+    - name: maven
       image: maven:3.9.9-eclipse-temurin-23
+      command: ["cat"]
       tty: true
-      command:
-        - cat
-      securityContext:
-        privileged: true  
       volumeMounts:
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
+        - name: workspace
+          mountPath: /home/jenkins/agent/workspace
         - name: maven-cache
           mountPath: /root/.m2
-      resources:
-        requests:
-          memory: "2Gi"
-          cpu: "1000m"
-        limits:
-          memory: "4Gi"
-          cpu: "2000m"
+
+    - name: docker
+      image: docker:24-cli
+      command: ["cat"]
+      tty: true
+      volumeMounts:
+        - name: workspace
+          mountPath: /home/jenkins/agent/workspace
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+
   volumes:
     - name: docker-sock
       hostPath:
         path: /var/run/docker.sock
+        type: Socket
+    - name: workspace
+      emptyDir: {}
     - name: maven-cache
       emptyDir: {}

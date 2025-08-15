@@ -23,13 +23,18 @@ pipeline {
                 archiveArtifacts 'target/*.jar'
             }
         }
-        stage('Docker Build & Push') {
-            steps {
-                sh "docker build -t ${DOCKER_REPO}:${IMAGE_TAG} ."
-                sh "docker push ${DOCKER_REPO}:${IMAGE_TAG}"
-                sh "docker tag ${DOCKER_REPO}:${IMAGE_TAG} ${DOCKER_REPO}:latest"
-                sh "docker push ${DOCKER_REPO}:latest"
+        tage('Docker Build & Push') {
+        steps {
+            container('docker') {
+            sh """
+                docker build -t ${DOCKER_REPO}:${IMAGE_TAG} .
+                echo "${DOCKERHUB_CREDENTIALS_PSW}" | docker login -u "${DOCKERHUB_CREDENTIALS_USR}" --password-stdin
+                docker push ${DOCKER_REPO}:${IMAGE_TAG}
+                docker tag ${DOCKER_REPO}:${IMAGE_TAG} ${DOCKER_REPO}:latest
+                docker push ${DOCKER_REPO}:latest
+            """
             }
+        }
         }
         stage('Deploy to Minikube') {
             steps {
