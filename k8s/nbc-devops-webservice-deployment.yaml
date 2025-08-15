@@ -1,0 +1,43 @@
+ 
+ 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nbc-devops-webservice-deployment
+  namespace: temenos-fund-transfer
+  labels:
+    app: temenos-fund-transfer-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: temenos-fund-transfer-api
+  template:
+    metadata:
+      labels:
+        app: temenos-fund-transfer-api
+    spec:
+      containers:
+        - name: temenos-fund-transfer-api
+          image: docker.io/sarinkejohn/nbc-devops-webservice:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prep"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8 -Xmx512m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/heapdump.hprof -Duser.timezone=UTC"
+            - name: DB_URL
+              value: "jdbc:mysql://mysql-db-service:3306/devops_database?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: DB_PASSWORD
+ 
