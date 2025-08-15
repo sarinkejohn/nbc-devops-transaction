@@ -4,9 +4,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - master
-env:
-  APP_VERSION: 1.0.0
+      - master 
 
 permissions:
   contents: write
@@ -58,7 +56,7 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           tags: |
-            sarinkejohn/nbc-devops-webservice:${{ APP_VERSION }}
+            sarinkejohn/nbc-devops-webservice:1.0.0
             sarinkejohn/nbc-devops-webservice:${{ github.sha }}
             sarinkejohn/nbc-devops-webservice:latest
           push: true
