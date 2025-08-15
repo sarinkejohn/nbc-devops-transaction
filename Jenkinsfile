@@ -1,58 +1,40 @@
 pipeline {
-    agent any
-
+    agent {
+        kubernetes {
+            label 'maven-docker'
+            yamlFile 'jenkins-podtemplate.yaml' 
+        }
+    }
     environment {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-sarinke')
         DOCKER_REPO = 'sarinkejohn/nbc-devops-transaction'
         GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
         IMAGE_TAG = "${env.GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
     }
-
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
         stage('Maven Build') {
-            agent {
-                docker {
-                    image 'maven:3.9.9-eclipse-temurin-23'
-                    args '-v /root/.m2:/root/.m2'
-                }
-            }
             steps {
                 sh 'mvn -B clean package -DskipTests'
                 archiveArtifacts 'target/*.jar'
             }
         }
-
-        stage('Docker Build & Publish') {
+        stage('Docker Build & Push') {
             steps {
-                dockerBuildAndPublish(
-                    buildContext: '.',
-                    dockerRegistryCredentials: env.DOCKERHUB_CREDENTIALS,
-                    repoName: env.DOCKER_REPO,
-                    tag: env.IMAGE_TAG,
-                    pushLatest: true,
-                    forceTag: true,
-                    dockerfilePath: 'Dockerfile'
-                )
+                sh "docker build -t ${DOCKER_REPO}:${IMAGE_TAG} ."
+                sh "docker push ${DOCKER_REPO}:${IMAGE_TAG}"
+                sh "docker tag ${DOCKER_REPO}:${IMAGE_TAG} ${DOCKER_REPO}:latest"
+                sh "docker push ${DOCKER_REPO}:latest"
             }
         }
-
         stage('Deploy to Minikube') {
             steps {
                 sh "kubectl apply -f k8s-deployment.yaml"
             }
-        }
-    }
-
-    post {
-        cleanup {
-            sh "docker rmi ${env.DOCKER_REPO}:${env.IMAGE_TAG} || true"
-            cleanWs()
         }
     }
 }
