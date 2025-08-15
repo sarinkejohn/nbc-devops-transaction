@@ -29,7 +29,7 @@ spec:
             - name: JAVA_TOOL_OPTIONS
               value: "-Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8 -Xmx512m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/heapdump.hprof -Duser.timezone=UTC"
             - name: DB_URL
-              value: "jdbc:mysql://mysql-db-service:3306/devops_database?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+              value: "jdbc:mysql://mysql-db-service:3306/nbcDevops?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
